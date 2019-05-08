@@ -1,0 +1,13 @@
+{
+  "name": "mac-terminal-interpreter",
+  "version": "2019.5.6",
+  "description": "macOS volume",
+  "keywords": [
+    "volume"
+  ],
+  "homepage": "https://github.com/looking-for-a-job/mac-terminal-interpreter",
+  "license": "Unlicense",
+  "bin": {
+    "terminal": "./scripts/terminal"
+  }
+}

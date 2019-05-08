@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+{ set +x; } 2>/dev/null
+
+usage() {
+    echo "usage: $(basename $0) path" 1>&2
+    [[ $1 == "-h" ]] || [[ $1 == "--help" ]]; exit
+}
+
+[[ $1 == "-h" ]] || [[ $1 == "--help" ]] && usage "$@"
+
+[[ $# == 0 ]] && usage
+
+MAC_TERMINAL_CLOSE="${MAC_TERMINAL_CLOSE-0}"
+
+! [ -e "$1" ] && echo "ERROR: $1 NOT EXISTS" 1>&2 && exit 1
+! [ -f "$1" ] && echo "ERROR: $1 NOT A FILE" 1>&2 && exit 1
+[[ $OSTYPE != *"darwin"* ]] && echo "ERROR: macOS only" && exit 1
+
+[[ $1 != *.command ]] && {
+    command="$(mktemp).command" || exit
+    echo "$1" > "${command/.command/.original}"
+    cp "$1" "$command" || exit
+    set -- "$command"
+    ! [ -x "$1" ] && { chmod +x "$1" || exit; }
+    /usr/bin/open -a Terminal "$1"; exit
+}
+! [ -x "$1" ] && { chmod +x "$1" || exit; }
+! [ -t 1 ] && { open -a Terminal "$1"; exit; }
+
+[[ $TERM_PROGRAM != "Apple_Terminal" ]] && echo "ERROR: $TERM_PROGRAM" 1>&2 && exit 1
+
+original="$1"
+[ -e "${1/.command/.original}" ] && { original="$(cat "${1/.command/.original}")" || exit; }
+slug="$(echo $original | sed "s/\//_/g" | cut -c2-)"
+date="$(date "+%y-%m-%d %H-%M-%S")" || exit
+out=~/Library/Logs/Terminal/$slug/$date/out.log
+err=~/Library/Logs/Terminal/$slug/$date/err.log
+! [ -e "${out%/*}" ] && { mkdir -p "${out%/*}" || exit; }
+
+set -o pipefail; bash -l "$@" | tee "$out"
+exit=$?
+
+[[ $exit == 0 ]] && {
+    [[ $MAC_TERMINAL_CLOSE -gt 0 ]] && {
+        echo -n -e "\033]0;logout\007"
+        osascript -e 'tell application "Terminal" to close (every window whose name contains "logout")'
+    }
+    exit
+}
+[[ $exit != 0 ]] && {
+    [[ $MAC_TERMINAL_CLOSE == 2 ]] && {
+        echo -n -e "\033]0;logout\007"
+        osascript -e 'tell application "Terminal" to close (every window whose name contains "logout")'
+    }
+    mv "$out" "$err" || exit; echo -e "\a";
+    echo "[❗️Finished with exit code $exit ❗️]"
+}
+exit $exit
